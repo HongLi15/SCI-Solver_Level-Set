@@ -42,6 +42,8 @@ class meshFIM2d
       int blockLength, int blockWidth, bool verbose = false);
     void InitPatches(bool verbose = false);
     void InitPatches2();
+	
+	// Compute max inscribed circle radius and the max timestep size
     void compute_deltaT(int num_narrowband, bool verbose = false);
     void GenerateBlockNeighbors();
     void writeVTK(std::vector< std::vector <float> > time_values);
@@ -62,7 +64,7 @@ class meshFIM2d
     redistance* m_redist;
     int NumComputation;
     std::vector<int> narrowband;
-    IdxVector_h npart_h;
+    IdxVector_h npart_h; // node partition index
     IdxVector_d m_npart_d;
     IdxVector_d m_part_label_d;
     IdxVector_h epart_h;
@@ -85,7 +87,7 @@ class meshFIM2d
     int largest_vert_part;
     int largest_ele_part;
     int m_largest_num_inside_mem;
-    int full_num_ele;
+    int full_num_ele; // sum of "# of partintions involved in a element" over all elements
     int largest_Rin;
     Vector_d m_vertT_d;
     Vector_d m_vertT_after_permute_d;

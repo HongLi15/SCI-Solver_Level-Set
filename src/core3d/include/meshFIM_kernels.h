@@ -238,6 +238,7 @@ __global__ void kernel_updateT_single_stage3d(float timestep, int* narrowband_li
       Kplus[i] = fmax(K[i], (float)0.0);
       Kminus[i] = fmin(K[i], (float)0.0);
       beta += Kminus[i];
+      //beta += Kplus[i];
     }
 
     beta = 1.0 / beta;

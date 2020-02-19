@@ -654,7 +654,7 @@ void meshFIM2d::compute_deltaT(int num_narrowband, bool verbose)
   else if (nthreads <= 1024)
   {
     cudaSafeCall((kernel_compute_timestep2d < 1024 > << <nblocks, 1024 >> >(
-      full_num_ele, CAST(m_narrowband_d), CAST(m_ele_offsets_d),
+         full_num_ele, CAST(m_narrowband_d), CAST(m_ele_offsets_d),
       CAST(m_Rinscribe_d), CAST(m_cadv_local_d), CAST(m_ceik_global_d), 
       CAST(m_ccurv_global_d), CAST(timestep_per_block), CAST(Rin_per_block))));
   }
@@ -714,6 +714,7 @@ std::vector< std::vector< float > > meshFIM2d::GenerateData(
       m_Rinscribe_before_permute_d.end(), -1, thrust::maximum<double > ());
 
   starttime = clock();
+  
   //Init patches
   InitPatches(verbose);
   Vector_h cadv_h(3 * full_num_ele, 0);
@@ -722,7 +723,7 @@ std::vector< std::vector< float > > meshFIM2d::GenerateData(
   IdxVector_h ele_permute_h = IdxVector_h(ele_permute);
   for (int i = 0; i < full_num_ele; i++) {
     size_t triIdx = static_cast<size_t>(ele_permute_h[i]);
-    ceik_h[i] = 0.0f;
+    ceik_h[i] = 10.0f;
     ccurv_h[i] = 0.0f;
     cadv_h[0 * full_num_ele + i] = m_meshPtr->normals[triIdx][0];
     cadv_h[1 * full_num_ele + i] = m_meshPtr->normals[triIdx][1];
@@ -732,9 +733,11 @@ std::vector< std::vector< float > > meshFIM2d::GenerateData(
   m_ceik_global_d = Vector_d(ceik_h);
   m_ccurv_global_d = Vector_d(ccurv_h);
   m_Rinscribe_d = Vector_d(full_num_ele);
+  
   InitPatches2();
   GenerateBlockNeighbors();
   cudaThreadSynchronize();
+  
   if (verbose) 
     printf("After  preprocessing\n");
   endtime = clock();
@@ -826,10 +829,13 @@ std::vector< std::vector< float > > meshFIM2d::GenerateData(
         " due to zero narrow band." << std::endl;
       break;
     }
+	
     compute_deltaT(num_narrowband, verbose);
     for (int niter = 0; niter < inside_niter; niter++)
       updateT_single_stage_d(timestep, stepcount, m_narrowband_d, num_narrowband);
     //////////////////////////done updating/////////////////////////////////////////////////
+	
+	// convert vertT back to non-permuted order for use
     int nthreads = 256;
     int nblocks = min((int)ceil((double)nv / nthreads), 655535);
     cudaSafeCall((

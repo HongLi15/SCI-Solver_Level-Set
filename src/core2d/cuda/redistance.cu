@@ -83,6 +83,8 @@ void redistance::GenerateData(IdxVector_d& new_narrowband, int& new_num_narrowba
 
   thrust::copy(m_active_block_list_d.begin() + 1, m_active_block_list_d.begin() + 1 + numActive, h_ActiveList.begin());
   h_BlockLabel.assign(nparts, FarPoint);
+  
+  
   while(numActive > 0)
   {
     if (verbose) {
@@ -96,8 +98,12 @@ void redistance::GenerateData(IdxVector_d& new_narrowband, int& new_num_narrowba
       printf(" %d Active blocks.\n", numActive);
     }
     //    printf("nTotalIter = %d, numActive=%d\n", nTotalIter, numActive);
-    ///////////////////////////step 1: run solver //////////////////////////////////////////////////////////////////
-    nTotalIter++;
+	
+	
+    //////////////////////////////////////////////////////////////////
+    // 1.update the values of nodes in triangles/tets with local _solver
+	/////////////////////////////////////////////////////////////////
+	nTotalIter++;
     totalIterationNumber += numActive;
 
     nblocks = numActive;
@@ -113,7 +119,10 @@ void redistance::GenerateData(IdxVector_d& new_narrowband, int& new_num_narrowba
     cudaSafeCall((CopyOutBack << <nblocks, nthreads >> >(CAST(m_active_block_list_d),
             CAST(vert_offsets_d), CAST(m_DT_d), CAST(DT_d_out))));
 
-    //////////////////////step 2: reduction////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////
+    // check if tri/tet is converged with reduction operation
+	// compute the minimum value of the all the nodes in tri/tet
+	/////////////////////////////////////////////////////////////////
     if(nthreads <= 32)
     {
       cudaSafeCall((run_reduction_bandwidth < 32 > << <nblocks, 32 >> > (CAST(d_vert_con), CAST(d_block_con), CAST(m_active_block_list_d),
@@ -145,6 +154,12 @@ void redistance::GenerateData(IdxVector_d& new_narrowband, int& new_num_narrowba
     }
     thrust::copy(d_block_con.begin(), d_block_con.end(), h_block_con.begin());
     h_block_vertT_min = d_block_vertT_min;
+	
+	/////////////////////////
+	// if a is converged && phi min < w then
+	// add neighboring patches of a into a temporary list
+	// clear active list L
+	/////////////////////////
     int nOldActiveBlock = numActive;
     numActive = 0;
     h_ActiveListNew.clear();
@@ -186,10 +201,12 @@ void redistance::GenerateData(IdxVector_d& new_narrowband, int& new_num_narrowba
         h_ActiveList[numActive++] = currBlkIdx;
       }
     }
+	
     //////////////////////////////////////////////////////////////////
-    // 4. run solver only once for neighbor blocks of converged block
+    // run solver only once for neighbor blocks of converged block
     // current active list contains active blocks and neighbor blocks of
     // any converged blocks
+	//////////////////////////////////////////////////////////
 
     if(h_ActiveListNew.size() > 0)
     {
@@ -252,7 +269,7 @@ void redistance::GenerateData(IdxVector_d& new_narrowband, int& new_num_narrowba
 
 
       ////////////////////////////////////////////////////////////////
-      // 5. reduction
+      // check if a is converged with reduction operation
       ////////////////////////////////////////////////////////////////
       nthreads = largest_vert_part;
       run_reduction << <nblocks, nthreads >> >(
@@ -262,9 +279,10 @@ void redistance::GenerateData(IdxVector_d& new_narrowband, int& new_num_narrowba
         CAST(vert_offsets_d));
 
       //////////////////////////////////////////////////////////////////
-      // 6. update active list
+      // update active list
       // read back active volume from the device and add
       // active block to active list on the host memory
+	  //////////////////////////////////////////////////////////////////
       h_block_con = d_block_con;
       for(int i = 0; i < h_ActiveListNew.size(); i++)
       {
@@ -277,7 +295,10 @@ void redistance::GenerateData(IdxVector_d& new_narrowband, int& new_num_narrowba
       }
     }
   }
+  
+  //////////////////////////////////
   //compute new narrow band list
+  ///////////////////////////////////////
   nblocks = nparts;
   nthreads = largest_vert_part;
   tmp_new_narrowband[0] = 0;

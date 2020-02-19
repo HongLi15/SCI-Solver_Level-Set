@@ -337,6 +337,7 @@ __global__ void kernel_update_values(int* active_block_list, int* seed_label, in
                                      int* vert_offsets, double* vertT, double* ele_local_coords,
                                      int largest_num_inside_mem, int* mem_locations, int* mem_location_offsets, const int NITER, double* vertT_out, int* con)
 {
+  // Assuming that every patch has N nodes and M elements (normally M > N)
   int bidx = active_block_list[blockIdx.x];
   int tidx = threadIdx.x;
   int ele_start = ele_offsets[bidx];
@@ -356,6 +357,8 @@ __global__ void kernel_update_values(int* active_block_list, int* seed_label, in
                      -1, -1, -1, -1, -1, -1, -1, -1};
   //  short* l_mem = (short*)&s_eleT[4 * largest_ele_part];
   int count = 0;
+
+  //If thread index i < N, load the coordinates and value of node i into shared memory array SHARE.
   if (tidx < nv)
   {
     int mem_start = mem_location_offsets[vert_start + tidx];
@@ -378,6 +381,8 @@ __global__ void kernel_update_values(int* active_block_list, int* seed_label, in
   }
   __syncthreads();
 
+  //If thread index i <M, load the node indices for element i from ELE into registers. Fetch the 
+  //node coordinates and values from SHARE to registers.
   if (tidx < nv)
   {
 #pragma unroll
@@ -388,6 +393,7 @@ __global__ void kernel_update_values(int* active_block_list, int* seed_label, in
     }
   }
 
+  //If thread index i <M, write node values of element i to shared memory SHARE
   double eleT[3];
   if (tidx < ne)
   {
@@ -417,6 +423,9 @@ __global__ void kernel_update_values(int* active_block_list, int* seed_label, in
   }
   __syncthreads();
 
+
+  //If thread index i <M, call local_solver routine to compute the potential values of each node
+  //in element i and store these values in SHARE.
   double TA, TB, TC;
 
   double LenAB, LenBC, LenCA;
@@ -453,6 +462,9 @@ __global__ void kernel_update_values(int* active_block_list, int* seed_label, in
       __syncthreads();
       //      if (bidx == 4 && tidx == 0) for (int i = 0; i < 11; i++) if (l_mem[i] > -1) printf("iter=%d, i=%d, s_eleT[%d]=%f\n", iter, i, l_mem[i], s_eleT[l_mem[i]]);
 
+	  //If thread index i < N, load the column indices for the i th row of the gathering matrix,
+	  //COL[OFFSETS[i]] through COL[OFFSETS[i C 1]].Then fetch data from SHARE, compute
+	  //the minimal value, and broadcast the minimal value to SHARE according to the column indices.
       if (tidx < nv)
       {
         newT = s_eleT[l_mem[0]];
@@ -490,6 +502,8 @@ __global__ void kernel_update_values(int* active_block_list, int* seed_label, in
       __syncthreads();
     }
 
+	//If thread index i < N, if the minimal value is the same as the old value (within a tolerance),
+	//node i is labeled convergent.
     if (tidx < nv)
     {
       //      if (vert_start + tidx == 3)
@@ -497,9 +511,10 @@ __global__ void kernel_update_values(int* active_block_list, int* seed_label, in
       if (seed_label[vert_start + tidx] != redistance::SeedPoint)
       {
         vertT_out[vert_start + tidx] = newT;
-        if (oldT - newT < SMALLNUM) con[vert_start + tidx] = true;
-        else con[vert_start + tidx] = false;
-        //        con[vert_start + tidx] = converged;
+        if (oldT - newT < SMALLNUM) 
+			con[vert_start + tidx] = true;
+        else 
+			con[vert_start + tidx] = false;       
       }
       else
         con[vert_start + tidx] = true;
@@ -859,6 +874,7 @@ __global__ void CopyOutBack(int* active_block_list, int* vert_offsets, double* v
 
   int start = vert_offsets[bidx];
   int end = vert_offsets[bidx + 1];
+  //If thread index i <N, write the minimal value back to global memory VAL
   if (tidx < end - start)
   {
     vertT[tidx + start] = vertT_out[tidx + start];

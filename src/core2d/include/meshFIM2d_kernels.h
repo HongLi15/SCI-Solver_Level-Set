@@ -130,9 +130,10 @@ __global__ void kernel_updateT_single_stage2d(double timestep, int* narrowband_l
     local_coord0 = ele_local_coords[0 * full_ele_num + ele_start + tidx];
     local_coord1 = ele_local_coords[1 * full_ele_num + ele_start + tidx];
     local_coord2 = ele_local_coords[2 * full_ele_num + ele_start + tidx];
-    sigma[0] = cadv_local[ele_start + tidx];
-    sigma[1] = cadv_local[full_ele_num + ele_start + tidx];
+    // sigma[0] = cadv_local[ele_start + tidx];
+    // sigma[1] = cadv_local[full_ele_num + ele_start + tidx];
 
+	
     double cross[3];
     double v01[3] = {local_coord0, 0.0f, 0.0f};
     double v02[3] = {local_coord1, local_coord2, 0.0f};
@@ -174,7 +175,12 @@ __global__ void kernel_updateT_single_stage2d(double timestep, int* narrowband_l
     }
     abs_nabla_phi = LENGTH2(nablaPhi);
 
-    //compute K and Kplus and Kminus
+    sigma[0] = 1;
+    sigma[1] = 1;
+	sigma[0] = sigma[0]*eleT[0] / abs_nabla_phi;
+	sigma[1] = sigma[1]*eleT[1] / abs_nabla_phi;
+	
+    //compute K and Kplus and Kminus  K==Q
     double Kplus[3];
     double Kminus[3];
     double K[3];
@@ -187,7 +193,8 @@ __global__ void kernel_updateT_single_stage2d(double timestep, int* narrowband_l
       Hintegral += K[i] * eleT[i];
       Kplus[i] = fmax(K[i], 0.0);
       Kminus[i] = fmin(K[i], 0.0);
-      beta += Kminus[i];
+      beta += Kminus[i]; // Should be Kplus ?????
+      //beta += Kplus[i]; // Should be Kplus ?????
     }
 
     beta = 1.0 / beta;
@@ -548,7 +555,8 @@ __global__ void kernel_fill_ele_label2d(int ne, int* ele_permute, int* ele_offse
 }
 
 __global__ void kernel_compute_ele_npart2d(int ne, int* npart, int* ele, int* ele_label)
-{
+{ // determine # of partintions involved in a element
+
   //int bidx = blockIdx.x;
   int tidx = blockIdx.x * blockDim.x + threadIdx.x;
 

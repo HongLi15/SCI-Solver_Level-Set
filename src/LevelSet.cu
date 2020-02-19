@@ -173,6 +173,7 @@ void LevelSet::solveLevelSet() {
       (this->tetMesh_ == NULL && !this->isTriMesh_)) {
     initializeMesh();
   }
+
   float mn = std::numeric_limits<float>::max();
   float mx = 1.f - mn;
   if (this->isTriMesh_) {
@@ -186,7 +187,7 @@ void LevelSet::solveLevelSet() {
     if (!this->userSetAdvection_) {
       this->triMesh_->normals.resize(this->triMesh_->faces.size());
       for (size_t i = 0; i < this->triMesh_->faces.size(); i++) {
-        this->triMesh_->normals[i] = point(rangeX / 100., 0, 0);
+        this->triMesh_->normals[i] = point(0*rangeX / 100., 0*rangeX / 100, 0);
       }
     }
     //fill in initial values for the mesh if not given by the user
@@ -209,7 +210,7 @@ void LevelSet::solveLevelSet() {
 
     if (this->verbose_)
       std::cout << "Computing time : " << duration << " ms" << std::endl;
-  } else {
+  } else { // else use tet mesh
     for (size_t i = 0; i < this->tetMesh_->vertices.size(); i++) {
       mn = std::min(mn, this->tetMesh_->vertices[i][0]);
       mx = std::max(mx, this->tetMesh_->vertices[i][0]);
